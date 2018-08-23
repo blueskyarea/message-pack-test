@@ -11,8 +11,30 @@ import org.msgpack.MessagePack;
 import org.msgpack.annotation.Message;
 
 import com.couchbase.client.CouchbaseClient;
+import com.couchbase.mock.Bucket;
+import com.couchbase.mock.BucketConfiguration;
+import com.couchbase.mock.CouchbaseMock;
+import com.couchbase.mock.client.MockClient;
 
-public class MessagePackCouchbase {
+public class MessagePackCouchbaseMock {
+	protected final BucketConfiguration bucketConfiguration = new BucketConfiguration();
+	protected MockClient mockClient;
+	protected CouchbaseMock couchbaseMock;
+
+	public MessagePackCouchbaseMock() throws IOException, InterruptedException {
+		bucketConfiguration.numNodes = 1;
+		bucketConfiguration.numReplicas = 1;
+		bucketConfiguration.numVBuckets = 1024;
+		bucketConfiguration.name = "bucketName";
+		bucketConfiguration.type = Bucket.BucketType.COUCHBASE;
+		bucketConfiguration.password = "password";
+		List<BucketConfiguration> configList = new ArrayList<BucketConfiguration>();
+		configList.add(bucketConfiguration);
+		couchbaseMock = new CouchbaseMock(8091, configList);
+		couchbaseMock.start();
+		couchbaseMock.waitForStartup();
+	}
+	
 	@Message
 	public static class Person {
 
@@ -44,26 +66,23 @@ public class MessagePackCouchbase {
 			this.date = date;
 		}
 	}
-	
+
 	public static void main(String[] args) throws IOException, InterruptedException, URISyntaxException {
-		Person src = new Person("blueskyarea", 27);
+		Person src = new Person("blueskyarea", 25);
 		MessagePack msgPack = new MessagePack();
 		byte[] buffer = msgPack.write(src);
 		for (byte b : buffer) {
 			System.out.print(Integer.toHexString(b & 0xFF) + " ");
 		}
 		
+		MessagePackCouchbaseMock mpc = new MessagePackCouchbaseMock();
 		List<URI> hosts = new ArrayList<>();
-		hosts.add(new URI("http://172.17.0.3:8091/pools"));
-		CouchbaseClient client = new CouchbaseClient(hosts, "default", null, "password");
+		hosts.add(new URI("http://localhost:8091/pools"));
+		CouchbaseClient client = new CouchbaseClient(hosts, "bucketName", null, "password");
 		
-		//client.set("test-key", buffer);
-		client.set("test-key", 123);
+		client.set("test-key", buffer);
+		
 		Object object = client.get("test-key");
-		System.out.println(object);
-		System.out.println((int)object);
-		
-		/*Object object = client.get("test-key");
 		for (byte b: (byte[]) object) {
 			System.out.print(Integer.toHexString(b & 0xFF) + " ");
 		}
@@ -76,8 +95,6 @@ public class MessagePackCouchbase {
 		NewPerson dest2 = msgPack.read((byte[]) object, NewPerson.class);
 		System.out.println(dest2.name);
 		System.out.println(dest2.age);
-		System.out.println(dest2.date);*/
-		
-		//client.shutdown();
+		System.out.println(dest2.date);
 	}
 }
